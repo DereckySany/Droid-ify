@@ -20,19 +20,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout código
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
 
       - name: Configurar JDK
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
       - name: Configurar Gradle
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/gradle-build-action@v4
         with:
           gradle-version: wrapper
 
@@ -54,7 +54,7 @@ jobs:
           echo "APK_PATH=app/build/outputs/apk/release/" >> $GITHUB_ENV
 
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: droid-ify-${{ env.BUILD_TYPE }}
           path: ${{ env.APK_PATH }}
