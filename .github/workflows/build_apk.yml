@@ -1,0 +1,91 @@
+name: Build APK
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      build-type:
+        type: choice
+        description: 'Tipo de Build'
+        required: true
+        default: 'debug'
+        options:
+        - debug
+        - release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Configurar JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Configurar Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: wrapper
+
+      - name: Conceder permissão de execução para gradlew
+        run: chmod +x gradlew
+
+      - name: Build Debug APK
+        if: github.event.inputs.build-type == 'debug' || github.event.inputs.build-type == ''
+        run: |
+          ./gradlew assembleDebug
+          echo "BUILD_TYPE=debug" >> $GITHUB_ENV
+          echo "APK_PATH=app/build/outputs/apk/debug/" >> $GITHUB_ENV
+
+      - name: Build Release APK
+        if: github.event.inputs.build-type == 'release'
+        run: |
+          ./gradlew assembleRelease
+          echo "BUILD_TYPE=release" >> $GITHUB_ENV
+          echo "APK_PATH=app/build/outputs/apk/release/" >> $GITHUB_ENV
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: droid-ify-${{ env.BUILD_TYPE }}
+          path: ${{ env.APK_PATH }}
+
+      - name: Gerar nome do Release
+        id: release-name
+        run: |
+          echo "RELEASE_NAME=Droid-ify-${{ env.BUILD_TYPE }}-$(date +'%Y%m%d_%H%M')" >> $GITHUB_ENV
+
+      - name: Criar Release
+        uses: softprops/action-gh-release@v1
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: ${{ env.RELEASE_NAME }}
+          tag_name: ${{ env.RELEASE_NAME }}
+          files: ${{ env.APK_PATH }}/*.apk
+          draft: false
+          prerelease: ${{ env.BUILD_TYPE == 'debug' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notificar Status da Build
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const status = '${{ job.status }}' === 'success' ? '✅ Sucesso' : '❌ Falha';
+            const buildType = '${{ env.BUILD_TYPE }}';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `Build ${buildType} status: ${status}\nData: ${new Date().toISOString()}`
+            })
